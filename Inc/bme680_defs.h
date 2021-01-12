@@ -101,7 +101,7 @@
 #define BME680_POLL_PERIOD_MS		UINT8_C(10)
 
 /** BME680 I2C addresses */
-#define BME680_I2C_ADDR_PRIMARY		UINT8_C(0x76)
+#define BME680_I2C_ADDR_PRIMARY		UINT8_C(0xEE)
 #define BME680_I2C_ADDR_SECONDARY	UINT8_C(0x77)
 
 /** BME680 unique chip identifier */

@@ -34,8 +34,8 @@ extern "C" {
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "ssd1306.h"
-#include "bme280.h"
-#include "mems.h"
+#include "bme680.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

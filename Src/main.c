@@ -58,7 +58,10 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-uint8_t BME680ReadByte(uint8_t address) ;
+void user_delay_ms(uint32_t period);
+int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
+int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len);
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -121,10 +124,21 @@ int main(void)
 		SPOFF();
 		osDelay(500);*/
 
+    struct bme680_dev gas_sensor;
+
+    gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
+    gas_sensor.intf = BME680_I2C_INTF;
+    gas_sensor.read = user_i2c_read;
+    gas_sensor.write = user_i2c_write;
+    gas_sensor.delay_ms = user_delay_ms;
+    gas_sensor.amb_temp = 25;
+
+
+    int8_t rslt = 33;
+    rslt = bme680_init(&gas_sensor);
 
 
 
-	var2 = BME680ReadByte(0xD0);
 
 
   /* USER CODE END 2 */
@@ -139,29 +153,18 @@ int main(void)
 	var1 > 10000 ? var1 = 0 : var1++;
 
 
-	var1 == 100 ? var2 = BME680ReadByte(0xD0) : var1++;
+//	var1 == 100 ? var2 = BME680ReadByte(0xD0) : var1++;
 
 
-		sprintf(bufbme, "%x.%d", var2, var1);
+		sprintf(bufbme, "%d.%d", rslt, var1);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString((char*) bufbme, Font_7x10);
     ssd1306_UpdateScreen();
 
-/*
-    struct bme680_dev gas_sensor;
-
-    gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
-    gas_sensor.intf = BME680_I2C_INTF;
-    gas_sensor.read = user_i2c_read;
-    gas_sensor.write = user_i2c_write;
-    gas_sensor.delay_ms = user_delay_ms;
-    gas_sensor.amb_temp = 25;
+  }
 
 
-    int8_t rslt = BME680_OK;
-    rslt = bme680_init(&gas_sensor);
 
-*/
 
     /* USER CODE END WHILE */
 
@@ -170,7 +173,7 @@ int main(void)
 
 
 
-  }
+
 
 
 
@@ -239,18 +242,33 @@ void SystemClock_Config(void)
 /* USER CODE BEGIN 4 */
 
 
-
-
-
-uint8_t BME680ReadByte(uint8_t address) {
-	uint8_t data;
-
-	uint8_t rmsg[1];
-	HAL_I2C_Mem_Read(&hi2c1, 0xEE, address, I2C_MEMADD_SIZE_8BIT,
-			(uint8_t*) rmsg, 1, 1000);
-	data = rmsg[0];
-	return data;
+void user_delay_ms(uint32_t period)
+{
+HAL_Delay(period);
 }
+
+
+int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0;
+
+	HAL_I2C_Mem_Read(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
+			(uint8_t*) reg_data, len, 3000);
+
+    return rslt;
+}
+
+int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
+{
+    int8_t rslt = 0;
+
+	HAL_I2C_Mem_Write(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
+			(uint8_t*) reg_data, len, 3000);
+
+    return rslt;
+}
+
+
 
 /* USER CODE END 4 */
 
