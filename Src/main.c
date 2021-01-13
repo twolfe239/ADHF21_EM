@@ -52,7 +52,15 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+	  char bufbme[10];
+	  char bufbme1[20];
+	  uint32_t var1 = 0;
+	  uint32_t var2 = 0;
+	    uint8_t set_required_settings;
+	    int8_t rslt = 0;
+	    struct bme680_dev gas_sensor;
+	    struct bme680_field_data data;
+	    uint16_t meas_period;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -76,9 +84,17 @@ int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint1
 int main(void)
 {
   /* USER CODE BEGIN 1 */
-	  char bufbme[10];
-	  uint32_t var1 = 0;
-	  uint32_t var2 = 0;
+
+
+
+
+    /* Get the total measurement duration so as to sleep or wait till the
+     * measurement is complete */
+//    uint16_t meas_period;
+ //   bme680_get_profile_dur(&meas_period, &gas_sensor);
+
+
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -124,7 +140,7 @@ int main(void)
 		SPOFF();
 		osDelay(500);*/
 
-    struct bme680_dev gas_sensor;
+
 
     gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
     gas_sensor.intf = BME680_I2C_INTF;
@@ -133,11 +149,56 @@ int main(void)
     gas_sensor.delay_ms = user_delay_ms;
     gas_sensor.amb_temp = 25;
 
+    /* Set the temperature, pressure and humidity settings */
+    gas_sensor.tph_sett.os_hum = BME680_OS_2X;
+    gas_sensor.tph_sett.os_pres = BME680_OS_4X;
+    gas_sensor.tph_sett.os_temp = BME680_OS_8X;
+    gas_sensor.tph_sett.filter = BME680_FILTER_SIZE_3;
 
-    int8_t rslt = 33;
+    /* Set the remaining gas sensor settings and link the heating profile */
+    gas_sensor.gas_sett.run_gas = BME680_ENABLE_GAS_MEAS;
+    /* Create a ramp heat waveform in 3 steps */
+    gas_sensor.gas_sett.heatr_temp = 320; /* degree Celsius */
+    gas_sensor.gas_sett.heatr_dur = 150; /* milliseconds */
+
+    /* Select the power mode */
+    /* Must be set before writing the sensor configuration */
+    gas_sensor.power_mode = BME680_FORCED_MODE;
+
+    /* Set the required sensor settings needed */
+    set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL
+        | BME680_GAS_SENSOR_SEL;
+
+    /* Set the desired sensor configuration */
+    rslt = bme680_set_sensor_settings(set_required_settings,&gas_sensor);
+
+
+    sprintf(bufbme, "SETT.%d", rslt);
+	ssd1306_SetCursor(0, 0);
+	ssd1306_WriteString((char*) bufbme, Font_7x10);
+ssd1306_UpdateScreen();
+HAL_Delay(2000);
+
+    /* Set the power mode */
+    rslt = bme680_set_sensor_mode(&gas_sensor);
+
+    sprintf(bufbme, "MODE.%d", rslt);
+	ssd1306_SetCursor(0, 0);
+	ssd1306_WriteString((char*) bufbme, Font_7x10);
+ssd1306_UpdateScreen();
+HAL_Delay(2000);
+
+
     rslt = bme680_init(&gas_sensor);
+    sprintf(bufbme, "INIT.%d", rslt);
+	ssd1306_SetCursor(0, 0);
+	ssd1306_WriteString((char*) bufbme, Font_7x10);
+ssd1306_UpdateScreen();
+HAL_Delay(2000);
 
 
+
+bme680_get_profile_dur(&meas_period, &gas_sensor);
 
 
 
@@ -147,19 +208,64 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  user_delay_ms(meas_period);
 		HAL_IWDG_Refresh(&hiwdg);
 
-
+/*
 	var1 > 10000 ? var1 = 0 : var1++;
-
-
-//	var1 == 100 ? var2 = BME680ReadByte(0xD0) : var1++;
 
 
 		sprintf(bufbme, "%d.%d", rslt, var1);
 		ssd1306_SetCursor(0, 0);
 		ssd1306_WriteString((char*) bufbme, Font_7x10);
     ssd1306_UpdateScreen();
+*/
+
+
+
+    rslt = bme680_get_sensor_data(&data, &gas_sensor);
+
+   // printf("T: %.2f degC, P: %.2f hPa, H %.2f %%rH ", data.temperature / 100.0f,
+  //      data.pressure / 100.0f, data.humidity / 1000.0f );
+
+    uint32_t temp = data.temperature / 100.0f;
+    sprintf(bufbme1, "T: %.2d degC", temp);
+	ssd1306_SetCursor(0, 0);
+	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+    uint32_t press = data.pressure / 100.0f;
+  sprintf(bufbme1, "P: %.2d hPa", press);
+	ssd1306_SetCursor(0, 10);
+	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+
+	  uint32_t hum = data.humidity / 1000.0f;
+	  sprintf(bufbme1, "H %.2f %%rH ", hum);
+	ssd1306_SetCursor(0, 20);
+	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+
+
+
+    ssd1306_UpdateScreen();
+    /* Avoid using measurements from an unstable heating setup */
+//    if(data.status & BME680_GASM_VALID_MSK)
+//        printf(", G: %d ohms", data.gas_resistance);
+
+
+    /* Trigger the next measurement if you would like to read data out continuously */
+    if (gas_sensor.power_mode == BME680_FORCED_MODE) {
+        rslt = bme680_set_sensor_mode(&gas_sensor);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
 
   }
 

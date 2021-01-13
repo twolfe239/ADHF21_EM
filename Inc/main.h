@@ -35,6 +35,7 @@ extern "C" {
 #include "string.h"
 #include "ssd1306.h"
 #include "bme680.h"
+#include "bme680_selftest.h"
 
 /* USER CODE END Includes */
 
