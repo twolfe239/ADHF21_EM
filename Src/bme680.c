@@ -39,7 +39,7 @@
 /*! @file bme680.c
  @brief Sensor driver for BME680 sensor */
 #include "bme680.h"
-
+#include "main.h"
 /*!
  * @brief This internal API is used to read the calibrated data from the sensor.
  *
@@ -699,6 +699,20 @@ int8_t bme680_get_sensor_data(struct bme680_field_data *data, struct bme680_dev 
 
 	/* Check for null pointer in the device structure*/
 	rslt = null_ptr_check(dev);
+	char bufbme[20];
+
+
+
+
+
+    sprintf(bufbme, "GETS.%d", rslt);
+	ssd1306_SetCursor(0, 10);
+	ssd1306_WriteString((char*) bufbme, Font_7x10);
+ssd1306_UpdateScreen();
+
+
+
+
 	if (rslt == BME680_OK) {
 		/* Reading the sensor data in forced mode only */
 		rslt = read_field_data(data, dev);

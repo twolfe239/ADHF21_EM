@@ -90,8 +90,8 @@ int main(void)
 
     /* Get the total measurement duration so as to sleep or wait till the
      * measurement is complete */
-//    uint16_t meas_period;
- //   bme680_get_profile_dur(&meas_period, &gas_sensor);
+    uint16_t meas_period;
+    bme680_get_profile_dur(&meas_period, &gas_sensor);
 
 
 
@@ -116,7 +116,7 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-  MX_IWDG_Init();
+// MX_IWDG_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   //------------------------------------------------------------------ OLED
@@ -127,13 +127,14 @@ int main(void)
 
   //------------------------------------------------------------------ StartUP
 //------------------------------------------------------------------ Knock-knock-knock
-	/*	SPON();
-		osDelay(500);
-		SPOFF();
-		osDelay(500);
 		SPON();
-		osDelay(450);
+		HAL_Delay(50);
 		SPOFF();
+		HAL_Delay(50);
+		SPON();
+		HAL_Delay(45);
+		SPOFF();
+			/*
 		osDelay(500);
 		SPON();
 		osDelay(400);
@@ -166,8 +167,7 @@ int main(void)
     gas_sensor.power_mode = BME680_FORCED_MODE;
 
     /* Set the required sensor settings needed */
-    set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL
-        | BME680_GAS_SENSOR_SEL;
+    set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL | BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
 
     /* Set the desired sensor configuration */
     rslt = bme680_set_sensor_settings(set_required_settings,&gas_sensor);
@@ -209,7 +209,7 @@ bme680_get_profile_dur(&meas_period, &gas_sensor);
   while (1)
   {
 	  user_delay_ms(meas_period);
-		HAL_IWDG_Refresh(&hiwdg);
+//		HAL_IWDG_Refresh(&hiwdg);
 
 /*
 	var1 > 10000 ? var1 = 0 : var1++;
@@ -229,11 +229,14 @@ bme680_get_profile_dur(&meas_period, &gas_sensor);
   //      data.pressure / 100.0f, data.humidity / 1000.0f );
 
     uint32_t temp = data.temperature / 100.0f;
-    sprintf(bufbme1, "T: %.2d degC", temp);
+    sprintf(bufbme1, "T: %.2f degC", temp);
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString((char*) bufbme1, Font_7x10);
-    uint32_t press = data.pressure / 100.0f;
-  sprintf(bufbme1, "P: %.2d hPa", press);
+
+
+
+	  /*   uint32_t press = data.pressure / 100.0f;
+	sprintf(bufbme1, "P: %.2d hPa", press);
 	ssd1306_SetCursor(0, 10);
 	ssd1306_WriteString((char*) bufbme1, Font_7x10);
 
@@ -241,7 +244,7 @@ bme680_get_profile_dur(&meas_period, &gas_sensor);
 	  sprintf(bufbme1, "H %.2f %%rH ", hum);
 	ssd1306_SetCursor(0, 20);
 	ssd1306_WriteString((char*) bufbme1, Font_7x10);
-
+*/
 
 
     ssd1306_UpdateScreen();
