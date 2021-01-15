@@ -20,8 +20,6 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "i2c.h"
-#include "iwdg.h"
-#include "rtc.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -52,15 +50,13 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-	  char bufbme[10];
-	  char bufbme1[20];
-	  uint32_t var1 = 0;
-	  uint32_t var2 = 0;
-	    uint8_t set_required_settings;
-	    int8_t rslt = 0;
-	    struct bme680_dev gas_sensor;
-	    struct bme680_field_data data;
-	    uint16_t meas_period;
+	 volatile char bufbme[50];
+	 volatile  char bufbme1[50];
+	 volatile  uint32_t var1 = 0;
+	 volatile  uint32_t var2 = 0;
+	 volatile  uint8_t set_required_settings;
+	 volatile  int8_t rslt = 0;
+	 volatile  uint16_t meas_period;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -88,10 +84,6 @@ int main(void)
 
 
 
-    /* Get the total measurement duration so as to sleep or wait till the
-     * measurement is complete */
-    uint16_t meas_period;
-    bme680_get_profile_dur(&meas_period, &gas_sensor);
 
 
 
@@ -116,17 +108,13 @@ int main(void)
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
   MX_I2C1_Init();
-// MX_IWDG_Init();
-  MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-  //------------------------------------------------------------------ OLED
+  	//------------------------------------------------------------------ OLED
   	ssd1306_Init();
   	ssd1306_FlipScreenVertically();
   	ssd1306_Clear();
   	ssd1306_SetColor(White);
-
-  //------------------------------------------------------------------ StartUP
-//------------------------------------------------------------------ Knock-knock-knock
+  	//------------------------------------------------------------------ Knock-knock-knock
 		SPON();
 		HAL_Delay(50);
 		SPOFF();
@@ -134,14 +122,10 @@ int main(void)
 		SPON();
 		HAL_Delay(45);
 		SPOFF();
-			/*
-		osDelay(500);
-		SPON();
-		osDelay(400);
-		SPOFF();
-		osDelay(500);*/
+	//------------------------------------------------------------------ BME INI
 
 
+  struct bme680_dev gas_sensor;
 
     gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
     gas_sensor.intf = BME680_I2C_INTF;
@@ -177,7 +161,7 @@ int main(void)
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString((char*) bufbme, Font_7x10);
 ssd1306_UpdateScreen();
-HAL_Delay(2000);
+HAL_Delay(1000);
 
     /* Set the power mode */
     rslt = bme680_set_sensor_mode(&gas_sensor);
@@ -186,7 +170,7 @@ HAL_Delay(2000);
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString((char*) bufbme, Font_7x10);
 ssd1306_UpdateScreen();
-HAL_Delay(2000);
+HAL_Delay(1000);
 
 
     rslt = bme680_init(&gas_sensor);
@@ -194,14 +178,16 @@ HAL_Delay(2000);
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString((char*) bufbme, Font_7x10);
 ssd1306_UpdateScreen();
-HAL_Delay(2000);
+HAL_Delay(1000);
 
 
 
 bme680_get_profile_dur(&meas_period, &gas_sensor);
 
+ssd1306_Clear();
 
-
+uint32_t ii = 0;
+struct bme680_field_data data;
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -209,54 +195,30 @@ bme680_get_profile_dur(&meas_period, &gas_sensor);
   while (1)
   {
 	  user_delay_ms(meas_period);
-//		HAL_IWDG_Refresh(&hiwdg);
-
-/*
-	var1 > 10000 ? var1 = 0 : var1++;
 
 
-		sprintf(bufbme, "%d.%d", rslt, var1);
-		ssd1306_SetCursor(0, 0);
-		ssd1306_WriteString((char*) bufbme, Font_7x10);
-    ssd1306_UpdateScreen();
-*/
 
 
 
     rslt = bme680_get_sensor_data(&data, &gas_sensor);
 
-   // printf("T: %.2f degC, P: %.2f hPa, H %.2f %%rH ", data.temperature / 100.0f,
-  //      data.pressure / 100.0f, data.humidity / 1000.0f );
-
-    uint32_t temp = data.temperature / 100.0f;
-    sprintf(bufbme1, "T: %.2f degC", temp);
+    sprintf(bufbme1, "T: %.2f degC", data.temperature / 100.0f);
 	ssd1306_SetCursor(0, 0);
 	ssd1306_WriteString((char*) bufbme1, Font_7x10);
 
 
 
-	  /*   uint32_t press = data.pressure / 100.0f;
-	sprintf(bufbme1, "P: %.2d hPa", press);
-	ssd1306_SetCursor(0, 10);
-	ssd1306_WriteString((char*) bufbme1, Font_7x10);
 
-	  uint32_t hum = data.humidity / 1000.0f;
-	  sprintf(bufbme1, "H %.2f %%rH ", hum);
-	ssd1306_SetCursor(0, 20);
-	ssd1306_WriteString((char*) bufbme1, Font_7x10);
-*/
+
+
 
 
     ssd1306_UpdateScreen();
-    /* Avoid using measurements from an unstable heating setup */
-//    if(data.status & BME680_GASM_VALID_MSK)
-//        printf(", G: %d ohms", data.gas_resistance);
 
-
-    /* Trigger the next measurement if you would like to read data out continuously */
-    if (gas_sensor.power_mode == BME680_FORCED_MODE) {
+  /*  Trigger the next measurement if you would like to read data out continuously*/
+  /*  if (gas_sensor.power_mode == BME680_FORCED_MODE) {
         rslt = bme680_set_sensor_mode(&gas_sensor);
-    }
+    }*/
 
 
 
@@ -266,8 +228,9 @@ bme680_get_profile_dur(&meas_period, &gas_sensor);
 
 
 
-
-
+    sprintf(bufbme1, "%d", ii++);
+	ssd1306_SetCursor(0, 20);
+	ssd1306_WriteString((char*) bufbme1, Font_7x10);
 
 
   }
@@ -308,18 +271,14 @@ void SystemClock_Config(void)
 {
   RCC_OscInitTypeDef RCC_OscInitStruct = {0};
   RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
-  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
   /** Initializes the RCC Oscillators according to the specified parameters
   * in the RCC_OscInitTypeDef structure.
   */
-  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_LSI|RCC_OSCILLATORTYPE_HSE
-                              |RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-  RCC_OscInitStruct.LSIState = RCC_LSI_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
   RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
@@ -340,12 +299,6 @@ void SystemClock_Config(void)
   {
     Error_Handler();
   }
-  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
-  {
-    Error_Handler();
-  }
 }
 
 /* USER CODE BEGIN 4 */
@@ -360,21 +313,30 @@ HAL_Delay(period);
 int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
 {
     int8_t rslt = 0;
-
-	HAL_I2C_Mem_Read(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
-			(uint8_t*) reg_data, len, 3000);
-
+      HAL_StatusTypeDef status = HAL_OK;
+      status = HAL_I2C_Mem_Read(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT, (uint8_t*)reg_data, len, 0x10000);
+      if(status != HAL_OK) rslt = -3;
+    sprintf(bufbme1, "GR: %d", rslt);
+  	ssd1306_SetCursor(64, 10);
+  	ssd1306_WriteString((char*) bufbme1, Font_7x10);
     return rslt;
 }
 
 int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data, uint16_t len)
 {
     int8_t rslt = 0;
+    HAL_StatusTypeDef status = HAL_OK;
+    status = HAL_I2C_Mem_Write(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT, (uint8_t*)reg_data, len, 0x10000);
+    if(status != HAL_OK) rslt = -3;
 
-	HAL_I2C_Mem_Write(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
-			(uint8_t*) reg_data, len, 3000);
+
+    sprintf(bufbme1, "GW: %d", rslt);
+	ssd1306_SetCursor(64, 20);
+	ssd1306_WriteString((char*) bufbme1, Font_7x10);
 
     return rslt;
+
+
 }
 
 

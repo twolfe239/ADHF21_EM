@@ -699,17 +699,6 @@ int8_t bme680_get_sensor_data(struct bme680_field_data *data, struct bme680_dev 
 
 	/* Check for null pointer in the device structure*/
 	rslt = null_ptr_check(dev);
-	char bufbme[20];
-
-
-
-
-
-    sprintf(bufbme, "GETS.%d", rslt);
-	ssd1306_SetCursor(0, 10);
-	ssd1306_WriteString((char*) bufbme, Font_7x10);
-ssd1306_UpdateScreen();
-
 
 
 

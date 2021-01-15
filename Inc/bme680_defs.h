@@ -372,7 +372,15 @@ struct	bme680_field_data {
 	/*! Measurement index to track order */
 	uint8_t meas_index;
 
-
+#ifndef BME680_FLOAT_POINT_COMPENSATION
+	/*! Temperature in degree celsius x100 */
+	int16_t temperature;
+	/*! Pressure in Pascal */
+	uint32_t pressure;
+	/*! Humidity in % relative humidity x1000 */
+	uint32_t humidity;
+	/*! Gas resistance in Ohms */
+	uint32_t gas_resistance;
 #else
 	/*! Temperature in degree celsius */
 	float temperature;
