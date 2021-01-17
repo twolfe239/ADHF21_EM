@@ -102,7 +102,7 @@
 
 /** BME680 I2C addresses */
 #define BME680_I2C_ADDR_PRIMARY		UINT8_C(0xEE)
-#define BME680_I2C_ADDR_SECONDARY	UINT8_C(0x77)
+#define BME680_I2C_ADDR_SECONDARY	UINT8_C(0xEC)
 
 /** BME680 unique chip identifier */
 #define BME680_CHIP_ID  UINT8_C(0x61)
