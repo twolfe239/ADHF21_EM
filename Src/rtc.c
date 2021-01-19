@@ -23,7 +23,7 @@
 /* USER CODE BEGIN 0 */
 
 void Time(void) {
-	char buftime [20];
+	char buftime [10];
 	RTC_TimeTypeDef sTime = { 0 };
 	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN); // RTC_FORMAT_BIN , RTC_FORMAT_BCD
 	sprintf(buftime, "%02d:%02d:%02d", sTime.Hours, sTime.Minutes,sTime.Seconds);

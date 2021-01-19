@@ -65,6 +65,12 @@ void Error_Handler(void);
 #define AL_BUT_Pin GPIO_PIN_0
 #define AL_BUT_GPIO_Port GPIOA
 #define AL_BUT_EXTI_IRQn EXTI0_IRQn
+#define MinUp_Pin GPIO_PIN_12
+#define MinUp_GPIO_Port GPIOB
+#define MinUp_EXTI_IRQn EXTI15_10_IRQn
+#define HourUp_Pin GPIO_PIN_13
+#define HourUp_GPIO_Port GPIOB
+#define HourUp_EXTI_IRQn EXTI15_10_IRQn
 #define BUZZ_Pin GPIO_PIN_8
 #define BUZZ_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
