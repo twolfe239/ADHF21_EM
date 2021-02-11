@@ -32,7 +32,7 @@
 /* USER CODE BEGIN PTD */
 struct bme680_dev gas_sensor;
 struct bme680_field_data data;
-
+RTC_TimeTypeDef sTime;
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
@@ -55,7 +55,8 @@ volatile uint8_t set_required_settings;
 volatile int8_t rslt = 0;
 volatile uint16_t meas_period;
 volatile uint32_t ii = 0;
-RTC_TimeTypeDef sTime = { 0 };
+volatile uint8_t flPin = 239;
+volatile uint8_t flIntrpt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -75,34 +76,18 @@ void BME680_Read(void);
 /* USER CODE BEGIN 0 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
-	if (GPIO_Pin == GPIO_PIN_0) {
+	flIntrpt = 1;
 
+	if (GPIO_Pin == GPIO_PIN_0) {
+		flPin = intPin0;
 	}
 
 	if (GPIO_Pin == GPIO_PIN_12) {
-		HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-		sTime.Hours = sTime.Hours;
-		if (sTime.Minutes == 0x59) {
-			sTime.Hours = sTime.Hours--;
-		}
-
-		sTime.Minutes = sTime.Minutes++;
-		sTime.Seconds = 0x01;
-		if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-			Error_Handler();
-		}
+		flPin = intPin12;
 	}
 
 	if (GPIO_Pin == GPIO_PIN_13) {
-		HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-		sTime.Hours = sTime.Hours++;
-		sTime.Minutes = sTime.Minutes;
-		sTime.Seconds = 0x01;
-
-		if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-			Error_Handler();
-		}
-
+		flPin = intPin13;
 	}
 
 }
@@ -196,6 +181,87 @@ int main(void) {
 	/* Infinite loop */
 	/* USER CODE BEGIN WHILE */
 	while (1) {
+		if (flIntrpt) {
+
+			flIntrpt = 0;
+
+
+			switch (flPin) {
+			case intPin0:
+				//------------------------------------------------------------------ PWR OFF NRF
+				//------------------------------------------------------------------ PWR OFF MEMS
+				gas_sensor.power_mode = BME680_SLEEP_MODE;
+				rslt = bme680_set_sensor_mode(&gas_sensor);
+				if (!(rslt)) {
+					ssd1306_Clear();
+					ssd1306_UpdateScreen();
+					ssd1306_SetCursor(0, 32);
+					ssd1306_WriteString("BME SLP", Font_16x26);
+					ssd1306_UpdateScreen();
+					HAL_Delay(2000);
+
+				}
+				else {
+					ssd1306_Clear();
+					ssd1306_UpdateScreen();
+					ssd1306_SetCursor(0, 32);
+					ssd1306_WriteString("ERR BME", Font_16x26);
+					ssd1306_UpdateScreen();
+					HAL_Delay(2000);
+				}
+				//------------------------------------------------------------------ PWR OFF OLED
+				ssd1306_Clear();
+				ssd1306_UpdateScreen();
+				ssd1306_SetCursor(0, 32);
+				ssd1306_WriteString("STANDBY", Font_16x26);
+				ssd1306_UpdateScreen();
+				HAL_Delay(2000);
+				ssd1306_Clear();
+				ssd1306_UpdateScreen();
+				ssd1306_DisplayOff();
+				//------------------------------------------------------------------ StandBy STM
+				HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN1);
+				__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+				HAL_PWR_EnterSTANDBYMode();
+				break;
+
+			case intPin12:
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+				sTime.Hours = sTime.Hours;
+				if (sTime.Minutes == 0x59) {
+					sTime.Hours = sTime.Hours--;
+				}
+
+				sTime.Minutes = sTime.Minutes++;
+				sTime.Seconds = 0x01;
+				if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+					Error_Handler();
+				}
+
+				break;
+			case intPin13:
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+				sTime.Hours = sTime.Hours++;
+				sTime.Minutes = sTime.Minutes;
+				sTime.Seconds = 0x01;
+
+				if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+					Error_Handler();
+				}
+
+
+				break;
+			default:
+				ssd1306_Clear();
+				ssd1306_UpdateScreen();
+				ssd1306_SetCursor(0, 32);
+				ssd1306_WriteString("ERR INT", Font_16x26);
+				ssd1306_UpdateScreen();
+				HAL_Delay(2000);
+				break;
+			}
+			flPin = intPinDef;
+		}
 
 		Time();
 

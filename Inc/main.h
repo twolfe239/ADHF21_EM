@@ -76,6 +76,10 @@ void Error_Handler(void);
 /* USER CODE BEGIN Private defines */
 #define SPON() HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET)
 #define SPOFF() HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET)
+#define intPin0 0x00
+#define intPin12 0x0C
+#define intPin13 0x0D
+#define intPinDef 0xEF
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

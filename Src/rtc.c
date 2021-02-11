@@ -31,26 +31,14 @@ void Time(void) {
 	ssd1306_WriteString((char*) buftime, Font_7x10);
 
 
-
+/*
 
 	if (sTime.Hours == 18) {
 		if (sTime.Minutes == 00) {
 			if (sTime.Seconds == 00) {
-//------------------------------------------------------------------ PWR OFF NRF
-
-//------------------------------------------------------------------ PWR OFF MEMS
-
-//------------------------------------------------------------------ PWR OFF OLED
-				ssd1306_Clear();
-				ssd1306_UpdateScreen();
-				ssd1306_DisplayOff();
-//------------------------------------------------------------------ StandBy STM
-				HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN1);
-				__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
-				HAL_PWR_EnterSTANDBYMode();
 			}
 		}
-	}
+	}*/
 
 }
 /* USER CODE END 0 */
