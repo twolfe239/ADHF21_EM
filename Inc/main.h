@@ -65,6 +65,10 @@ void Error_Handler(void);
 #define AL_BUT_Pin GPIO_PIN_0
 #define AL_BUT_GPIO_Port GPIOA
 #define AL_BUT_EXTI_IRQn EXTI0_IRQn
+#define RS_Pin GPIO_PIN_3
+#define RS_GPIO_Port GPIOA
+#define SS_Pin GPIO_PIN_4
+#define SS_GPIO_Port GPIOA
 #define MinUp_Pin GPIO_PIN_12
 #define MinUp_GPIO_Port GPIOB
 #define MinUp_EXTI_IRQn EXTI15_10_IRQn
