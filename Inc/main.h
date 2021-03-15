@@ -29,19 +29,28 @@ extern "C" {
 
 /* Includes ------------------------------------------------------------------*/
 #include "stm32f1xx_hal.h"
+#include "cmsis_os.h"
+#include "i2c.h"
+#include "rtc.h"
+#include "spi.h"
+#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "string.h"
 #include "ssd1306.h"
 #include "bme680.h"
-
+#include "uip.h"
+#include "uip_arp.h"
+#include "enc28j60.h"
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+struct bme680_dev gas_sensor;
+struct bme680_field_data data;
+RTC_TimeTypeDef sTime;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -58,7 +67,13 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void user_delay_ms(uint32_t period);
+int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
+		uint16_t len);
+int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
+		uint16_t len);
 
+void BME680_Read(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
@@ -78,12 +93,18 @@ void Error_Handler(void);
 #define BUZZ_Pin GPIO_PIN_8
 #define BUZZ_GPIO_Port GPIOB
 /* USER CODE BEGIN Private defines */
+#define BUF ((struct uip_eth_hdr *)&uip_buf[UIP_LLH_LEN])
 #define SPON() HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_SET)
 #define SPOFF() HAL_GPIO_WritePin(GPIOB, GPIO_PIN_8, GPIO_PIN_RESET)
 #define intPin0 0x00
 #define intPin12 0x0C
 #define intPin13 0x0D
 #define intPinDef 0xEF
+
+
+
+
+
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

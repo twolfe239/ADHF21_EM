@@ -19,30 +19,20 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
-#include "i2c.h"
-#include "rtc.h"
-#include "spi.h"
-#include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "enc28j60.h"
-#include "uip.h"
-#include "uip_arp.h"
-#include "uip-conf.h"
-#include "hello-world.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-struct bme680_dev gas_sensor;
-struct bme680_field_data data;
-RTC_TimeTypeDef sTime;
+
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -67,14 +57,9 @@ volatile uint8_t flIntrpt = 0;
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-void user_delay_ms(uint32_t period);
-int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len);
-int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len);
 
-void BME680_Read(void);
 
 /* USER CODE END PFP */
 
@@ -131,90 +116,88 @@ int main(void)
   MX_RTC_Init();
   MX_SPI1_Init();
   /* USER CODE BEGIN 2 */
-	//------------------------------------------------------------------ OLED
-	ssd1306_Init();
-	ssd1306_FlipScreenVertically();
-	ssd1306_Clear();
-	ssd1306_SetColor(White);
-	//------------------------------------------------------------------ Knock-knock-knock
-	SPON();
-	HAL_Delay(50);
-	SPOFF();
-	HAL_Delay(50);
-	SPON();
-	HAL_Delay(45);
-	SPOFF();
-	//------------------------------------------------------------------ BME INI
-	gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
-	gas_sensor.intf = BME680_I2C_INTF;
-	gas_sensor.read = user_i2c_read;
-	gas_sensor.write = user_i2c_write;
-	gas_sensor.delay_ms = user_delay_ms;
-	gas_sensor.amb_temp = 25;
+  //------------------------------------------------------------------ OLED
+  	ssd1306_Init();
+  	ssd1306_FlipScreenVertically();
+  	ssd1306_Clear();
+  	ssd1306_SetColor(White);
+  	//------------------------------------------------------------------ Knock-knock-knock
+  	SPON();
+  	HAL_Delay(50);
+  	SPOFF();
+  	HAL_Delay(50);
+  	SPON();
+  	HAL_Delay(45);
+  	SPOFF();
+  	//------------------------------------------------------------------ BME INI
+  	gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
+  	gas_sensor.intf = BME680_I2C_INTF;
+  	gas_sensor.read = user_i2c_read;
+  	gas_sensor.write = user_i2c_write;
+  	gas_sensor.delay_ms = user_delay_ms;
+  	gas_sensor.amb_temp = 25;
 
-	/* Set the temperature, pressure and humidity settings */
-	gas_sensor.tph_sett.os_hum = BME680_OS_16X;
-	gas_sensor.tph_sett.os_pres = BME680_OS_16X;
-	gas_sensor.tph_sett.os_temp = BME680_OS_16X;
-	gas_sensor.tph_sett.filter = BME680_FILTER_SIZE_127;
+  	/* Set the temperature, pressure and humidity settings */
+  	gas_sensor.tph_sett.os_hum = BME680_OS_16X;
+  	gas_sensor.tph_sett.os_pres = BME680_OS_16X;
+  	gas_sensor.tph_sett.os_temp = BME680_OS_16X;
+  	gas_sensor.tph_sett.filter = BME680_FILTER_SIZE_127;
 
-	/* Set the remaining gas sensor settings and link the heating profile */
-	gas_sensor.gas_sett.run_gas = BME680_ENABLE_GAS_MEAS;
-	/* Create a ramp heat waveform in 3 steps */
-	gas_sensor.gas_sett.heatr_temp = 320; /* degree Celsius */
-	gas_sensor.gas_sett.heatr_dur = 150; /* milliseconds */
+  	/* Set the remaining gas sensor settings and link the heating profile */
+  	gas_sensor.gas_sett.run_gas = BME680_ENABLE_GAS_MEAS;
+  	/* Create a ramp heat waveform in 3 steps */
+  	gas_sensor.gas_sett.heatr_temp = 320; /* degree Celsius */
+  	gas_sensor.gas_sett.heatr_dur = 150; /* milliseconds */
 
-	/* Select the power mode */
-	/* Must be set before writing the sensor configuration */
-	gas_sensor.power_mode = BME680_FORCED_MODE;
+  	/* Select the power mode */
+  	/* Must be set before writing the sensor configuration */
+  	gas_sensor.power_mode = BME680_FORCED_MODE;
 
-	/* Set the required sensor settings needed */
-	set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL
-			| BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
+  	/* Set the required sensor settings needed */
+  	set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL
+  			| BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
 
-	rslt = bme680_init(&gas_sensor);
+  	rslt = bme680_init(&gas_sensor);
 
-	/* Set the desired sensor configuration */
-	rslt = bme680_set_sensor_settings(set_required_settings, &gas_sensor);
+  	/* Set the desired sensor configuration */
+  	rslt = bme680_set_sensor_settings(set_required_settings, &gas_sensor);
 
-	/* Set the power mode */
-	rslt = bme680_set_sensor_mode(&gas_sensor);
+  	/* Set the power mode */
+  	rslt = bme680_set_sensor_mode(&gas_sensor);
 
-	bme680_get_profile_dur(&meas_period, &gas_sensor);
+  	bme680_get_profile_dur(&meas_period, &gas_sensor);
 
-	ssd1306_Clear();
-
-
-
-	// это будет наш МАС-адрес
-	        struct uip_eth_addr mac = {{ 0x00, 0x01, 0x02, 0x03, 0x04, 0x00 }};
-	        // проинитим наш  enc28j60
-	        enc28j60Init(mac.addr,0);
+  	ssd1306_Clear();
 
 
 
 
-	        // инициализация стека
-	        uip_init();
-	        uip_arp_init();
 
-	        // инициализация приложения, потом втулим сюда веб-сервер
-	        hello_world_init();
-	        // установим наш МАС
-	        uip_setethaddr(mac);
+  	// это будет наш МАС-адрес
+  	        struct uip_eth_addr mac = { { 0x00, 0x01, 0x02, 0x03, 0x04, 0x00 } };
 
-	        // установим адрес хоста (не используем dhcp)
-	        // наш хост будет доступен по адресу 192.168.2.55
+  	        // проинитим наш  enc28j60
+  	        enc28j60_init(mac.addr);
 
-	        uip_ipaddr_t ipaddr;
-	        uip_ipaddr(ipaddr, 192, 168, 0, 4);
-	        uip_sethostaddr(ipaddr);
-	        uip_ipaddr(ipaddr, 192, 168, 0, 1);
-	        uip_setdraddr(ipaddr);
-	        uip_ipaddr(ipaddr, 255, 255, 255, 0);
-	        uip_setnetmask(ipaddr);
+  	        // инициализация стека
+  	        uip_init();
+  	        uip_arp_init();
 
+  	        // инициализация приложения, потом втулим сюда веб-сервер
+  	        hello_world_init();
 
+  	        // установим наш МАС
+  	        uip_setethaddr(mac);
+
+  	        // установим адрес хоста (не используем dhcp)
+  	        // наш хост будет доступен по адресу 192.168.2.55
+  	        uip_ipaddr_t ipaddr;
+  	        uip_ipaddr(ipaddr, 192, 168, 0, 55);
+  	        uip_sethostaddr(ipaddr);
+  	        uip_ipaddr(ipaddr, 192, 168, 0, 1);
+  	        uip_setdraddr(ipaddr);
+  	        uip_ipaddr(ipaddr, 255, 255, 255, 0);
+  	        uip_setnetmask(ipaddr);
 
 
 
@@ -222,68 +205,18 @@ int main(void)
 
 
 
+  /* USER CODE END 2 */
 
+  /* Init scheduler */
+  osKernelInitialize();  /* Call init function for freertos objects (in freertos.c) */
+  MX_FREERTOS_Init();
+  /* Start scheduler */
+  osKernelStart();
 
-
-
-
-
-	        uint32_t i;
-	           uint8_t delay_arp = 0;
-
-
-
-  /* USER CODE END 2#define BUF ((struct uip_tcpip_hdr *)&uip_buf[UIP_LLH_LEN]) */
-
+  /* We should never get here as control is now taken by the scheduler */
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 	while (1) {
-
-
-HAL_Delay(500);
-           delay_arp++;
-           for (i = 0; i < UIP_CONNS; i++) {
-                   uip_periodic(i);
-                   if (uip_len > 0) {
-                           uip_arp_out();
-                           enc28j60PacketSend((uint8_t *) uip_buf, uip_len);
-                   }
-           }
-
-#if UIP_UDP
-           for(i = 0; i < UIP_UDP_CONNS; i++) {
-                   uip_udp_periodic(i);
-                   if(uip_len > 0) {
-                           uip_arp_out();
-                           network_send();
-                   }
-           }
-#endif /* UIP_UDP */
-
-           if (delay_arp >= 50) { // один раз за 50 проходов цикла, около 10 сек.
-                   delay_arp = 0;
-                   uip_arp_timer();
-           }
-
-
-           uip_len = enc28j60_recv_packet((uint8_t *) uip_buf, UIP_BUFSIZE);
-
-                         if (uip_len > 0) {
-                               //  if (BUF->type == htons(UIP_ETHTYPE_IP)) {
-                                         uip_arp_ipin();
-                                         uip_input();
-                                         if (uip_len > 0) {
-                                                 uip_arp_out();
-                                                 enc28j60PacketSend((uint8_t *) uip_buf, uip_len);
-                         //                }
-                            /*     } else if (BUF->type == htons(UIP_ETHTYPE_ARP)) {
-                                         uip_arp_arpin();
-                                         if (uip_len > 0) {
-                                                 enc28j60_send_packet((uint8_t *) uip_buf, uip_len);
-                                         }*/
-                                 }
-                         }
-
 
 
 
@@ -385,11 +318,6 @@ HAL_Delay(500);
 			flPin = intPinDef;
 		}
 
-		Time();
-
-		BME680_Read();
-
-		ssd1306_UpdateScreen();
 
 	}
 
@@ -451,7 +379,7 @@ void SystemClock_Config(void)
 
 void BME680_Read(void) {
 
-	user_delay_ms(meas_period);
+//	user_delay_ms(meas_period);
 	rslt = bme680_get_sensor_data(&data, &gas_sensor);
 
 	sprintf(bufbme1, "T: %.2f degC", data.temperature / 100.0f);
@@ -482,6 +410,7 @@ void BME680_Read(void) {
 
 void user_delay_ms(uint32_t period) {
 	HAL_Delay(period);
+
 }
 
 int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
@@ -505,6 +434,12 @@ int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
 		rslt = -3;
 
 	return rslt;
+
+}
+
+
+
+void uip_log(char *msg) {
 
 }
 
