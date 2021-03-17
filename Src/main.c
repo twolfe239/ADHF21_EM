@@ -21,22 +21,93 @@
 #include "main.h"
 #include "i2c.h"
 #include "rtc.h"
+#include "spi.h"
+#include "tim.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "i2c_lcd.h"
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdarg.h>
+#include <string.h>
+
+
+#include <dhcpc.h>
+#include <umqtt.h>
+#include <enc28j60.h>
+#include <clock.h>
+#include <uip.h>
+#include <uip_arp.h>
+#include <nic.h>
+#include <main.h>
+#include <net_config.h>
+#include <enc28j60def.h>
+
+#if UIP_SPLIT_HACK
+#include "uip-split.h"
+#elif UIP_EMPTY_PACKET_HACK
+#include "uip-empty-packet.h"
+#endif
+
+
+
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-struct bme680_dev gas_sensor;
-struct bme680_field_data data;
+RTC_TimeTypeDef sTime;
 
+struct timer periodic_timer;
+struct timer arp_timer;
+struct timer mqtt_kalive_timer;
+struct timer mqtt_conn_timer;
+struct timer mqtt_pub_timer;
+
+static clock_time_t timerCounter = 0;
+
+static struct uip_eth_addr uNet_eth_address;
+
+static uint8_t mqtt_txbuff[200];
+static uint8_t mqtt_rxbuff[150];
+
+static void handle_message(struct umqtt_connection *conn, char *topic, char *data);
+
+static struct umqtt_connection mqtt =
+{
+  .txbuff =
+  {
+    .start = mqtt_txbuff,
+    .length = sizeof(mqtt_txbuff),
+  },
+  .rxbuff =
+  {
+    .start = mqtt_rxbuff,
+    .length = sizeof(mqtt_rxbuff),
+  },
+  .message_callback = handle_message,
+};
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+
+#define BUF ((struct uip_eth_hdr *)&uip_buf[0])
+
+#define MQTT_KEEP_ALIVE			30
+#define MQTT_CLIENT_ID			"enc28j60_stm32_client"
+#define MQTT_TOPIC_ALL			"/#"
+#define MQTT_IP0                        192
+#define MQTT_IP1                        168
+#define MQTT_IP2                        1
+#define MQTT_IP3                        35//46
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -48,320 +119,655 @@ struct bme680_field_data data;
 
 /* USER CODE BEGIN PV */
 volatile char bufbme[50];
-volatile char bufbme1[50];
-volatile uint32_t var1 = 0;
-volatile uint32_t var2 = 0;
-volatile uint8_t set_required_settings;
-volatile int8_t rslt = 0;
-volatile uint16_t meas_period;
 volatile uint32_t ii = 0;
-RTC_TimeTypeDef sTime = { 0 };
+volatile uint8_t flPin = 239;
+volatile uint8_t flIntrpt = 0;
+
+
+
+
+
+
+
+
+uint8_t nic_send_timer;
+uint16_t nic_txreset_num = 0;
+
+// TCP/IP parameters in data memory
+uint8_t _eth_addr[6] = {ETHADDR0, ETHADDR1, ETHADDR2, ETHADDR3, ETHADDR4, ETHADDR5};
+uint8_t _ip_addr[4] = {IPADDR0, IPADDR1, IPADDR2, IPADDR3};
+uint8_t _net_mask[4] = {NETMASK0, NETMASK1, NETMASK2, NETMASK3};
+uint8_t _gateway[4] = {DRIPADDR0, DRIPADDR1, DRIPADDR2, DRIPADDR3};
+
+
+
+
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
-void user_delay_ms(uint32_t period);
-int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len);
-int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len);
 
-void BME680_Read(void);
+
+
+
+
+
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
+
+
+
+
+
+
+//==============================================================================
+// Функция возвращает счётчик времени
+//==============================================================================
+clock_time_t clock_time(void)
+{
+  return timerCounter;
+}
+//==============================================================================
+
+
+//==============================================================================
+// Обработчик входящих MQTT-сообщений
+//==============================================================================
+static void handle_message(struct umqtt_connection *conn, char *topic, char *data)
+{
+  uint8_t TopicMached = umqtt_isTopicMatched(MQTT_TOPIC_ALL, topic);
+  if (TopicMached)
+  {
+#if DEBUG_UMQTT
+    printf("%s (%s)\r\n", topic, data);
+#endif
+  }
+}
+//==============================================================================
+
+
+//==============================================================================
+// Обработчик прерывания от таймера (период = 1 мс). Используется всеми программными таймерами
+//==============================================================================
+void msTick_Handler(void)
+{
+  timerCounter++;
+
+  if (nic_send_timer)
+    nic_send_timer--;
+}
+//==============================================================================
+
+
+//==============================================================================
+// Процедура инициализирует 1мс таймера (для работы программных таймеров)
+//==============================================================================
+void clock_init(void)
+{
+//  tmr2_init(CLOCK_SECOND, msTick_Handler);
+//  timerCounter = 0;
+//  tmr2_start();
+}
+//==============================================================================
+
+
+//==============================================================================
+// Процедура обработчик успешного получения параметров IP от DHCP-сервера
+//==============================================================================
+void dhcpc_configured(const struct dhcpc_state *s)
+{
+  uip_sethostaddr(&s->ipaddr);
+  uip_setnetmask(&s->netmask);
+  uip_setdraddr(&s->default_router);
+}
+//==============================================================================
+
+
+//==============================================================================
+// Процедура установки соединения с MQTT-брокером
+//==============================================================================
+void nethandler_umqtt_init(struct umqtt_connection *conn)
+{
+  struct uip_conn *uc;
+  uip_ipaddr_t ip;
+
+  uip_ipaddr(&ip, MQTT_IP0, MQTT_IP1, MQTT_IP2, MQTT_IP3);
+  uc = uip_connect(&ip, htons(1883));
+
+  if (uc == NULL)
+    return;
+
+  conn->kalive = MQTT_KEEP_ALIVE;
+  conn->clientid = (char*)MQTT_CLIENT_ID;
+
+  umqtt_init(conn);
+  umqtt_circ_init(&conn->txbuff);
+  umqtt_circ_init(&conn->rxbuff);
+
+  umqtt_connect(conn);
+  uc->appstate.conn = conn;
+}
+//==============================================================================
+
+
+//==============================================================================
+// Функция записывает форматированную строку в буфер StrBuff
+//==============================================================================
+int8_t str_printf(char *StrBuff, uint8_t BuffLen, const char *args, ...)
+{
+  va_list ap;
+  va_start(ap, args);
+  int8_t len = vsnprintf(StrBuff, BuffLen, args, ap);
+  va_end(ap);
+  return len;
+}
+//==============================================================================
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 
-	if (GPIO_Pin == GPIO_PIN_0) {
+	flIntrpt = 1;
 
+	if (GPIO_Pin == GPIO_PIN_0) {
+		flPin = intPin0;
 	}
 
 	if (GPIO_Pin == GPIO_PIN_12) {
-		HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-		sTime.Hours = sTime.Hours;
-		if (sTime.Minutes == 0x59) {
-			sTime.Hours = sTime.Hours--;
-		}
-
-		sTime.Minutes = sTime.Minutes++;
-		sTime.Seconds = 0x01;
-		if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-			Error_Handler();
-		}
+		flPin = intPin12;
 	}
 
 	if (GPIO_Pin == GPIO_PIN_13) {
-		HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
-		sTime.Hours = sTime.Hours++;
-		sTime.Minutes = sTime.Minutes;
-		sTime.Seconds = 0x01;
-
-		if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
-			Error_Handler();
-		}
-
+		flPin = intPin13;
 	}
 
 }
 /* USER CODE END 0 */
 
 /**
- * @brief  The application entry point.
- * @retval int
- */
-int main(void) {
-	/* USER CODE BEGIN 1 */
+  * @brief  The application entry point.
+  * @retval int
+  */
+int main(void)
+{
+  /* USER CODE BEGIN 1 */
 
-	/* USER CODE END 1 */
+  /* USER CODE END 1 */
 
-	/* MCU Configuration--------------------------------------------------------*/
+  /* MCU Configuration--------------------------------------------------------*/
 
-	/* Reset of all peripherals, Initializes the Flash interface and the Systick. */
-	HAL_Init();
+  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
+  HAL_Init();
 
-	/* USER CODE BEGIN Init */
+  /* USER CODE BEGIN Init */
 
-	/* USER CODE END Init */
+  /* USER CODE END Init */
 
-	/* Configure the system clock */
-	SystemClock_Config();
+  /* Configure the system clock */
+  SystemClock_Config();
 
-	/* USER CODE BEGIN SysInit */
+  /* USER CODE BEGIN SysInit */
 
-	/* USER CODE END SysInit */
+  /* USER CODE END SysInit */
 
-	/* Initialize all configured peripherals */
-	MX_GPIO_Init();
-	MX_I2C1_Init();
-	MX_RTC_Init();
-	/* USER CODE BEGIN 2 */
-	//------------------------------------------------------------------ OLED
-	ssd1306_Init();
-	ssd1306_FlipScreenVertically();
-	ssd1306_Clear();
-	ssd1306_SetColor(White);
-	//------------------------------------------------------------------ Knock-knock-knock
-	SPON();
-	HAL_Delay(50);
-	SPOFF();
-	HAL_Delay(50);
-	SPON();
-	HAL_Delay(45);
-	SPOFF();
-	//------------------------------------------------------------------ BME INI
-	gas_sensor.dev_id = BME680_I2C_ADDR_PRIMARY;
-	gas_sensor.intf = BME680_I2C_INTF;
-	gas_sensor.read = user_i2c_read;
-	gas_sensor.write = user_i2c_write;
-	gas_sensor.delay_ms = user_delay_ms;
-	gas_sensor.amb_temp = 25;
+  /* Initialize all configured peripherals */
+  MX_GPIO_Init();
+  MX_I2C1_Init();
+  MX_RTC_Init();
+  MX_SPI1_Init();
+  MX_TIM2_Init();
+  /* USER CODE BEGIN 2 */
 
-	/* Set the temperature, pressure and humidity settings */
-	gas_sensor.tph_sett.os_hum = BME680_OS_16X;
-	gas_sensor.tph_sett.os_pres = BME680_OS_16X;
-	gas_sensor.tph_sett.os_temp = BME680_OS_16X;
-	gas_sensor.tph_sett.filter = BME680_FILTER_SIZE_127;
 
-	/* Set the remaining gas sensor settings and link the heating profile */
-	gas_sensor.gas_sett.run_gas = BME680_ENABLE_GAS_MEAS;
-	/* Create a ramp heat waveform in 3 steps */
-	gas_sensor.gas_sett.heatr_temp = 320; /* degree Celsius */
-	gas_sensor.gas_sett.heatr_dur = 150; /* milliseconds */
+  	//------------------------------------------------------------------ Knock-knock-knock
+  	SPON();
+  	HAL_Delay(50);
+  	SPOFF();
+  	HAL_Delay(50);
+  	SPON();
+  	HAL_Delay(45);
+  	SPOFF();
 
-	/* Select the power mode */
-	/* Must be set before writing the sensor configuration */
-	gas_sensor.power_mode = BME680_FORCED_MODE;
 
-	/* Set the required sensor settings needed */
-	set_required_settings = BME680_OST_SEL | BME680_OSP_SEL | BME680_OSH_SEL
-			| BME680_FILTER_SEL | BME680_GAS_SENSOR_SEL;
 
-	rslt = bme680_init(&gas_sensor);
 
-	/* Set the desired sensor configuration */
-	rslt = bme680_set_sensor_settings(set_required_settings, &gas_sensor);
+    //------------------------------------------------------------------ LCD
+  	lcd_Init();
+  	lcd_Clear();
 
-	/* Set the power mode */
-	rslt = bme680_set_sensor_mode(&gas_sensor);
+    //------------------------------------------------------------------ MQTT
 
-	bme680_get_profile_dur(&meas_period, &gas_sensor);
+    SystemInit();
 
-	ssd1306_Clear();
+    for (uint8_t  i = 0; i < 6; i++)
+      uNet_eth_address.addr[i] = _eth_addr[i];
 
-	/* USER CODE END 2 */
+  #if DEBUG_UIP
+    printf("MAC address:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+           _eth_addr[0], _eth_addr[1], _eth_addr[2], _eth_addr[3], _eth_addr[4], _eth_addr[5]);
+    printf("Init NIC...\r\n");
+  #endif
 
-	/* Infinite loop */
-	/* USER CODE BEGIN WHILE */
+    // init NIC device driver
+    nic_init(SPI1, _eth_addr);
+    uip_ipaddr_t ipaddr;
+    uip_setethaddr(uNet_eth_address);
+
+  #if DEBUG_UIP
+    printf("Init uIP...\r\n");
+  #endif
+
+    //init uIP
+    uip_init();
+
+  #if DEBUG_UIP
+    printf("Init ARP...\r\n");
+  #endif
+
+    //init ARP cache
+    uip_arp_init();
+
+    // init periodic timer
+    clock_init();
+
+  #if (ENABLE_DHCP == 1)
+    uip_ipaddr(ipaddr, 0, 0, 0, 0);
+    uip_sethostaddr(ipaddr);
+    uip_setnetmask(ipaddr);
+    uip_setdraddr(ipaddr);
+
+    dhcpc_init(&uNet_eth_address.addr[0], 6);
+    dhcpc_request();
+  #else
+
+  #if DEBUG_UIP
+    printf("Static IP %d.%d.%d.%d\r\n", _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
+    printf("NetMask %d.%d.%d.%d\r\n", _net_mask[0], _net_mask[1], _net_mask[2], _net_mask[3]);
+    printf("Gateway %d.%d.%d.%d\r\n", _gateway[0], _gateway[1], _gateway[2], _gateway[3]);
+  #endif
+
+    uip_ipaddr(ipaddr, _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
+    uip_sethostaddr(ipaddr);
+    uip_ipaddr(ipaddr, _net_mask[0], _net_mask[1], _net_mask[2], _net_mask[3]);
+    uip_setnetmask(ipaddr);
+    uip_ipaddr(ipaddr, _gateway[0], _gateway[1], _gateway[2], _gateway[3]);
+    uip_setdraddr(ipaddr);
+  #endif
+
+    /// Стартуем программные таймеры
+    // Таймер используется uIP для выполнения периодических действий с соединениями
+    timer_set(&periodic_timer, CLOCK_SECOND / 2);
+    // Таймер используется uIP для обслуживания ARP
+    timer_set(&arp_timer, CLOCK_SECOND * 10);
+    // Таймер используется для уведомлеия брокера о том, что мы ещё живы
+    timer_set(&mqtt_kalive_timer, CLOCK_SECOND * MQTT_KEEP_ALIVE);
+    // Таймер используется чтобы инициировать подключение к брокеру если соединение не установлено
+    timer_set(&mqtt_conn_timer, CLOCK_SECOND * 3);
+    // Таймер используется для периодической отправки сообщения по MQTT
+    timer_set(&mqtt_pub_timer, CLOCK_SECOND * 10);
+
+
+
+
+
+
+
+  /* USER CODE END 2 */
+
+  /* Infinite loop */
+  /* USER CODE BEGIN WHILE */
 	while (1) {
+
+
+	    NetTask();
+
+
 
 		Time();
 
-		BME680_Read();
 
-		ssd1306_UpdateScreen();
+
+
+
+
+
+
+
+
+
+
+		if (flIntrpt) {
+
+			flIntrpt = 0;
+
+
+			switch (flPin) {
+			case intPin0:
+				//------------------------------------------------------------------ PWR OFF NRF
+				//------------------------------------------------------------------ PWR OFF MEMS
+				//------------------------------------------------------------------ PWR OFF LCD
+				//------------------------------------------------------------------ StandBy STM
+				HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN1);
+				__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
+				HAL_PWR_EnterSTANDBYMode();
+				break;
+
+			case intPin12:
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+				sTime.Hours = sTime.Hours;
+				if (sTime.Minutes == 0x59) {
+					sTime.Hours = sTime.Hours--;
+				}
+
+				sTime.Minutes = sTime.Minutes++;
+				sTime.Seconds = 0x01;
+				if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+					Error_Handler();
+				}
+
+				break;
+			case intPin13:
+				HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BCD);
+				sTime.Hours = sTime.Hours++;
+				sTime.Minutes = sTime.Minutes;
+				sTime.Seconds = 0x01;
+
+				if (HAL_RTC_SetTime(&hrtc, &sTime, RTC_FORMAT_BCD) != HAL_OK) {
+					Error_Handler();
+				}
+
+
+				break;
+			default:
+		/*		ssd1306_Clear();
+				ssd1306_UpdateScreen();
+				ssd1306_SetCursor(0, 32);
+				ssd1306_WriteString("ERR INT", Font_16x26);
+				ssd1306_UpdateScreen();*/
+				HAL_Delay(2000);
+				break;
+			}
+			flPin = intPinDef;
+		}
+
 
 	}
 
-	/* USER CODE END WHILE */
+    /* USER CODE END WHILE */
 
-	/* USER CODE BEGIN 3 */
+    /* USER CODE BEGIN 3 */
 
-	/* USER CODE END 3 */
+  /* USER CODE END 3 */
 }
 
 /**
- * @brief System Clock Configuration
- * @retval None
- */
-void SystemClock_Config(void) {
-	RCC_OscInitTypeDef RCC_OscInitStruct = { 0 };
-	RCC_ClkInitTypeDef RCC_ClkInitStruct = { 0 };
-	RCC_PeriphCLKInitTypeDef PeriphClkInit = { 0 };
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+  RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-	/** Initializes the RCC Oscillators according to the specified parameters
-	 * in the RCC_OscInitTypeDef structure.
-	 */
-	RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE
-			| RCC_OSCILLATORTYPE_LSE;
-	RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-	RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
-	RCC_OscInitStruct.LSEState = RCC_LSE_ON;
-	RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-	RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-	RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-	RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
-	if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK) {
-		Error_Handler();
-	}
-	/** Initializes the CPU, AHB and APB buses clocks
-	 */
-	RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-			| RCC_CLOCKTYPE_PCLK1 | RCC_CLOCKTYPE_PCLK2;
-	RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-	RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
-	RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
-	RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE|RCC_OSCILLATORTYPE_LSE;
+  RCC_OscInitStruct.HSEState = RCC_HSE_ON;
+  RCC_OscInitStruct.HSEPredivValue = RCC_HSE_PREDIV_DIV1;
+  RCC_OscInitStruct.LSEState = RCC_LSE_ON;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
+  RCC_OscInitStruct.PLL.PLLMUL = RCC_PLL_MUL6;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-	if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK) {
-		Error_Handler();
-	}
-	PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
-	PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
-	if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK) {
-		Error_Handler();
-	}
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  PeriphClkInit.PeriphClockSelection = RCC_PERIPHCLK_RTC;
+  PeriphClkInit.RTCClockSelection = RCC_RTCCLKSOURCE_LSE;
+  if (HAL_RCCEx_PeriphCLKConfig(&PeriphClkInit) != HAL_OK)
+  {
+    Error_Handler();
+  }
 }
 
 /* USER CODE BEGIN 4 */
 
+//==============================================================================
+// Процедура, вызываемая в основном цикле
+//==============================================================================
+void NetTask(void)
+{
+  u8_t i;
 
-void BME680_Read(void) {
+  uip_len = nic_poll();
 
-	user_delay_ms(meas_period);
-	rslt = bme680_get_sensor_data(&data, &gas_sensor);
-	sprintf(bufbme1, "T: %.2f degC", data.temperature / 100.0f);
-	ssd1306_SetCursor(0, 20);
-	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+  if (uip_len > 0)
+  {
+    if (BUF->type == htons(UIP_ETHTYPE_IP))
+    {
+      uip_arp_ipin();
+      uip_input();
 
-	sprintf(bufbme1, "P: %.2f hPa", data.pressure / 100.0f);
-	ssd1306_SetCursor(0, 30);
-	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+      /* If the above function invocation resulted in data that	should be
+      sent out on the network, the global variable uip_len is set to a value > 0. */
+      if (uip_len > 0)
+      {
+	uip_arp_out();
+#if UIP_SPLIT_HACK
+	uip_split_output();
+#elif UIP_EMPTY_PACKET_HACK
+	uip_emtpy_packet_output();
+#else
+	nic_send();
+#endif
+      }
+    }
+    else if (BUF->type == htons(UIP_ETHTYPE_ARP))
+    {
+      uip_arp_arpin();
 
-	sprintf(bufbme1, "H %.2f %%rH ", data.humidity / 1000.0f);
-	ssd1306_SetCursor(0, 40);
-	ssd1306_WriteString((char*) bufbme1, Font_7x10);
+      /* If the above function invocation resulted in data that	should be sent
+      out on the network, the global variable uip_len is set to a value > 0. */
+      if (uip_len > 0)
+      {
+	nic_send();
+      }
+    }
+  }
+  else
+  {
+    if (timer_expired(&periodic_timer))
+    {
+      timer_reset(&periodic_timer);
 
-	if (data.status & BME680_GASM_VALID_MSK) {
+      for (i = 0; i < UIP_CONNS; i++)
+      {
+        uip_periodic(i);
 
-		sprintf(bufbme1, "G: %.2f Kohms ", data.gas_resistance / 1000.0f);
-		ssd1306_SetCursor(0, 50);
-		ssd1306_WriteString((char*) bufbme1, Font_7x10);
-	}
+        /* If the above function invocation resulted in data that	should be sent
+        out on the network, the global variable uip_len is set to a value > 0. */
+        if (uip_len > 0)
+        {
+          uip_arp_out();
+#if UIP_SPLIT_HACK
+          uip_split_output();
+#elif UIP_EMPTY_PACKET_HACK
+          uip_emtpy_packet_output();
+#else
+          nic_send();
+#endif
+        }
+      }
 
-	/*  Trigger the next measurement if you would like to read data out continuously*/
-	if (gas_sensor.power_mode == BME680_FORCED_MODE) {
-		rslt = bme680_set_sensor_mode(&gas_sensor);
-	}
+#if UIP_UDP
+      for (i = 0; i < UIP_UDP_CONNS; i++)
+      {
+        uip_udp_periodic(i);
 
+        /* If the above function invocation resulted in data that should be sent
+        out on the network, the global variable uip_len is set to a value > 0. */
+        if (uip_len > 0)
+        {
+          uip_arp_out();
+          nic_send();
+        }
+      }
+#endif /* UIP_UDP */
+
+      /* Call the ARP timer function every 10 seconds. */
+      if (timer_expired(&arp_timer))
+      {
+        timer_reset(&arp_timer);
+        uip_arp_timer();
+      }
+    }
+
+    // Обрабатываем пропадание LINKа
+    if (!enc28j60linkup())
+    {
+      uip_abort();
+      //umqtt_disconnected(&mqtt);
+    }
+
+    // Отправляем KeepAlive-пакет брокеру если нужно
+    if (timer_expired(&mqtt_kalive_timer))
+    {
+      timer_reset(&mqtt_kalive_timer);
+      umqtt_ping(&mqtt);
+    }
+
+    // Устанавливаем соединение с брокером если оно не установлено
+    if (timer_expired(&mqtt_conn_timer))
+    {
+      timer_reset(&mqtt_conn_timer);
+
+      if ((mqtt.state == UMQTT_STATE_INIT) ||
+          (mqtt.state == UMQTT_STATE_FAILED) ||
+          (mqtt.state == UMQTT_STATE_DISCONNECTED))
+      {
+        nethandler_umqtt_init(&mqtt);
+        umqtt_subscribe(&mqtt, MQTT_TOPIC_ALL);
+      }
+    }
+
+    // Отправляем новое сообщение со своим IP брокеру
+    if (timer_expired(&mqtt_pub_timer))
+    {
+      timer_reset(&mqtt_pub_timer);
+
+      char message[16];
+      uip_gethostaddr(_ip_addr);
+      int8_t len = str_printf(message, sizeof(message), "%d.%d.%d.%d", _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
+      if (len > 0)
+      {
+        umqtt_publish(&mqtt, "/enc28j60_stm32_client", (uint8_t *) message, strlen(message));
+      }
+    }
+  }
+
+  // Ждём окончания отправки пакета. Если проходит более N мс ожидания - делаем
+  // сброс логики передатчика enc28j60
+  nic_send_timer = 5;
+  while (nic_sending())
+  {
+    //    if (enc28j60Read(EIR) & EIR_TXERIF)   // Этот способ не работает, т.к. флаг ошибки передачи не устанавливается
+    // Истекло время ожидания окончания передачи
+    if (!nic_send_timer)
+    {
+      nic_txreset_num++;
+      enc28j60ResetTxLogic();
+    }
+  }
 }
+//==============================================================================
 
-void user_delay_ms(uint32_t period) {
-	HAL_Delay(period);
-}
 
-int8_t user_i2c_read(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len) {
-	int8_t rslt = 0;
-	HAL_StatusTypeDef status = HAL_OK;
-	status = HAL_I2C_Mem_Read(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
-			(uint8_t*) reg_data, len, 0x10000);
-	if (status != HAL_OK)
-		rslt = -3;
-	return rslt;
-}
-
-int8_t user_i2c_write(uint8_t dev_id, uint8_t reg_addr, uint8_t *reg_data,
-		uint16_t len) {
-	int8_t rslt = 0;
-	HAL_StatusTypeDef status = HAL_OK;
-	status = HAL_I2C_Mem_Write(&hi2c1, dev_id, reg_addr, I2C_MEMADD_SIZE_8BIT,
-			(uint8_t*) reg_data, len, 0x10000);
-	if (status != HAL_OK)
-		rslt = -3;
-
-	return rslt;
-
-}
 
 /* USER CODE END 4 */
 
-/**
- * @brief  Period elapsed callback in non blocking mode
- * @note   This function is called  when TIM1 interrupt took place, inside
- * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
- * a global variable "uwTick" used as application time base.
- * @param  htim : TIM handle
- * @retval None
- */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
-	/* USER CODE BEGIN Callback 0 */
+ /**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
+{
+  /* USER CODE BEGIN Callback 0 */
 
-	/* USER CODE END Callback 0 */
-	if (htim->Instance == TIM1) {
-		HAL_IncTick();
-	}
-	/* USER CODE BEGIN Callback 1 */
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
 
-	/* USER CODE END Callback 1 */
+  /* USER CODE END Callback 1 */
 }
 
 /**
- * @brief  This function is executed in case of error occurrence.
- * @retval None
- */
-void Error_Handler(void) {
-	/* USER CODE BEGIN Error_Handler_Debug */
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 
-	/* USER CODE END Error_Handler_Debug */
+  /* USER CODE END Error_Handler_Debug */
 }
 
 #ifdef  USE_FULL_ASSERT
 /**
- * @brief  Reports the name of the source file and the source line number
- *         where the assert_param error has occurred.
- * @param  file: pointer to the source file name
- * @param  line: assert_param error line source number
- * @retval None
- */
-void assert_failed(uint8_t *file, uint32_t line) {
-	/* USER CODE BEGIN 6 */
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
 	/* User can add his own implementation to report the file name and line number,
 	 tex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
-	/* USER CODE END 6 */
+  /* USER CODE END 6 */
 }
 #endif /* USE_FULL_ASSERT */
 

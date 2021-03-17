@@ -27,30 +27,19 @@ void Time(void) {
 	RTC_TimeTypeDef sTime = { 0 };
 	HAL_RTC_GetTime(&hrtc, &sTime, RTC_FORMAT_BIN); // RTC_FORMAT_BIN , RTC_FORMAT_BCD
 	sprintf(buftime, "%02d:%02d:%02d", sTime.Hours, sTime.Minutes,sTime.Seconds);
-	ssd1306_SetCursor(60, 0);
-	ssd1306_WriteString((char*) buftime, Font_7x10);
+//	ssd1306_SetCursor(60, 0);
+//	ssd1306_WriteString((char*) buftime, Font_7x10);
+	lcd_Goto(0, 0);
+	lcd_PrintC(buftime);
 
-
-
+/*
 
 	if (sTime.Hours == 18) {
 		if (sTime.Minutes == 00) {
 			if (sTime.Seconds == 00) {
-//------------------------------------------------------------------ PWR OFF NRF
-
-//------------------------------------------------------------------ PWR OFF MEMS
-
-//------------------------------------------------------------------ PWR OFF OLED
-				ssd1306_Clear();
-				ssd1306_UpdateScreen();
-				ssd1306_DisplayOff();
-//------------------------------------------------------------------ StandBy STM
-				HAL_PWR_DisableWakeUpPin(PWR_WAKEUP_PIN1);
-				__HAL_PWR_CLEAR_FLAG(PWR_FLAG_WU);
-				HAL_PWR_EnterSTANDBYMode();
 			}
 		}
-	}
+	}*/
 
 }
 /* USER CODE END 0 */
@@ -60,10 +49,18 @@ RTC_HandleTypeDef hrtc;
 /* RTC init function */
 void MX_RTC_Init(void)
 {
+
+  /* USER CODE BEGIN RTC_Init 0 */
+
+  /* USER CODE END RTC_Init 0 */
+
   RTC_TimeTypeDef sTime = {0};
   RTC_DateTypeDef DateToUpdate = {0};
   RTC_AlarmTypeDef sAlarm = {0};
 
+  /* USER CODE BEGIN RTC_Init 1 */
+
+  /* USER CODE END RTC_Init 1 */
   /** Initialize RTC Only
   */
   hrtc.Instance = RTC;
@@ -107,6 +104,9 @@ void MX_RTC_Init(void)
   {
     Error_Handler();
   }
+  /* USER CODE BEGIN RTC_Init 2 */
+
+  /* USER CODE END RTC_Init 2 */
 
 }
 
