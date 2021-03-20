@@ -27,6 +27,7 @@
 ************************************************************/
 
 #include <main.h>
+#include <usart.h>
 #include <gpio.h>
 #include <spi.h>
 #include "uip.h"
@@ -44,7 +45,7 @@
 
 uint8_t Enc28j60Bank;
 uint16_t NextPacketPtr;
-
+char bufuart[50];
 
 
 
@@ -58,6 +59,8 @@ uint8_t SPI_SendRecvByte(uint8_t TxByte)
 {
 	uint8_t RxByte;
 	HAL_SPI_TransmitReceive(&SPI_PORT, &TxByte, &RxByte,1,10000);
+
+
   return RxByte;
 }
 
@@ -77,7 +80,8 @@ uint8_t enc28j60ReadOp(uint8_t op, uint8_t address)
     data = SPI_SendRecvByte(0x00);
   // release CS
   ENC28J60_CS_HIGH();
-
+  sprintf(bufuart,"%x\r\n", data);
+  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
   return data;
 }
 
@@ -99,6 +103,7 @@ void enc28j60ReadBuffer(uint16_t len, uint8_t* data)
   ENC28J60_CS_LOW();
   // issue read command
   SPI_SendRecvByte(ENC28J60_READ_BUF_MEM);
+
   // read data
   while(len--)
     *data++ = SPI_SendRecvByte(0x00);

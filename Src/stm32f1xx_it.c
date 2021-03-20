@@ -233,15 +233,16 @@ void TIM2_IRQHandler(void)
 {
   /* USER CODE BEGIN TIM2_IRQn 0 */
 
+	//==============================================================================
+	// Обработчик прерывания таймера2
+	//==============================================================================
 
-	 /* if (TIM_GetITStatus(TIM2, TIM_IT_Update) != RESET)
+	  if (__HAL_TIM_GET_FLAG(&htim2, TIM_FLAG_UPDATE) != RESET)
 	  {
-	    TIM_ClearITPendingBit(TIM2, TIM_IT_Update);
+		  __HAL_TIM_CLEAR_FLAG(&htim2, TIM_FLAG_UPDATE);
 	    tmr2_handler();
 	    Test++;
-	  }*/
-
-
+	  }
 
   /* USER CODE END TIM2_IRQn 0 */
   HAL_TIM_IRQHandler(&htim2);

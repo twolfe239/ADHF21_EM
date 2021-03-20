@@ -2,11 +2,11 @@
 #define __NET_CONFIG_H__
 
 
-// Дуплексный режим работы ENC28J60
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅ ENC28J60
 #define ENC28J60_ENABLE_DUPLEX  1
 // uIP buffer size (maximum packat size, DHCP needs at least 400bytes)
 #define UIP_CONF_BUFFER_SIZE    400
-// MAC-адрес
+// MAC-пїЅпїЅпїЅпїЅпїЅ
 #define ETHADDR0        0x00 // The first octet of the Ethernet address 
 #define ETHADDR1        0xbd // The second octet of the Ethernet address
 #define ETHADDR2        0x3b // The third octet of the Ethernet address 
@@ -15,23 +15,23 @@
 #define ETHADDR5        0x71 // The sixth octet of the Ethernet address 
 
 #define ENABLE_DHCP     1
-// Параметры IP (если DHCP отключен)
+// пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ IP (пїЅпїЅпїЅпїЅ DHCP пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ)
 #define IPADDR0         192  // The first octet of the IP address of this uIP node
 #define IPADDR1         168  // The second octet of the IP address of this uIP node
-#define IPADDR2         1    // The third octet of the IP address of this uIP node
-#define IPADDR3         50   // The fourth octet of the IP address of this uIP node
+#define IPADDR2         0    // The third octet of the IP address of this uIP node
+#define IPADDR3         13	 // The fourth octet of the IP address of this uIP node
 #define NETMASK0        255  // The first octet of the netmask of this uIP node
 #define NETMASK1        255  // The second octet of the netmask of this uIP node
 #define NETMASK2        255  // The third octet of the netmask of this uIP node
 #define NETMASK3        0    // The fourth octet of the netmask of this uIP node
 #define DRIPADDR0       192  // The first octet of the IP address of the default router
 #define DRIPADDR1       168  // The second octet of the IP address of the default router
-#define DRIPADDR2       1    // The third octet of the IP address of the default router
+#define DRIPADDR2       0    // The third octet of the IP address of the default router
 #define DRIPADDR3       1    // The fourth octet of the IP address of the default router
 
 // Serial Debug configuration
-#define DEBUG_UMQTT     0
-#define DEBUG_UIP       0
+#define DEBUG_UMQTT     1
+#define DEBUG_UIP       1
 
 // enable uip split hack - to circumvent slow-down due to delayed ACK algorithm
 // (will send each tcp packet in two halves)

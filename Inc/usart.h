@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
-  * @file    tim.h
+  * @file    usart.h
   * @brief   This file contains all the function prototypes for
-  *          the tim.c file
+  *          the usart.c file
   ******************************************************************************
   * @attention
   *
@@ -17,8 +17,8 @@
   ******************************************************************************
   */
 /* Define to prevent recursive inclusion -------------------------------------*/
-#ifndef __TIM_H__
-#define __TIM_H__
+#ifndef __USART_H__
+#define __USART_H__
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,24 +31,22 @@ extern "C" {
 
 /* USER CODE END Includes */
 
-extern TIM_HandleTypeDef htim2;
+extern UART_HandleTypeDef huart1;
 
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
 
-void MX_TIM2_Init(void);
+void MX_USART1_UART_Init(void);
 
 /* USER CODE BEGIN Prototypes */
-void tmr2_init(uint32_t Freq, void (*func)(void));
-void tmr2_start(void);
-void tmr2_stop(void);
+
 /* USER CODE END Prototypes */
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* __TIM_H__ */
+#endif /* __USART_H__ */
 
 /************************ (C) COPYRIGHT STMicroelectronics *****END OF FILE****/

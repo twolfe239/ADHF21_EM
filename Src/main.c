@@ -23,6 +23,7 @@
 #include "rtc.h"
 #include "spi.h"
 #include "tim.h"
+#include "usart.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
@@ -105,8 +106,8 @@ static struct umqtt_connection mqtt =
 #define MQTT_TOPIC_ALL			"/#"
 #define MQTT_IP0                        192
 #define MQTT_IP1                        168
-#define MQTT_IP2                        1
-#define MQTT_IP3                        35//46
+#define MQTT_IP2                        0
+#define MQTT_IP3                        46//46
 
 /* USER CODE END PD */
 
@@ -118,7 +119,8 @@ static struct umqtt_connection mqtt =
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile char bufbme[50];
+volatile char bufbme[20];
+volatile char bufuart[50];
 volatile uint32_t ii = 0;
 volatile uint8_t flPin = 239;
 volatile uint8_t flIntrpt = 0;
@@ -185,7 +187,8 @@ static void handle_message(struct umqtt_connection *conn, char *topic, char *dat
   if (TopicMached)
   {
 #if DEBUG_UMQTT
-    printf("%s (%s)\r\n", topic, data);
+	  sprintf(bufuart,"%s (%s)\r\n", topic, data);
+	  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
 #endif
   }
 }
@@ -210,9 +213,9 @@ void msTick_Handler(void)
 //==============================================================================
 void clock_init(void)
 {
-//  tmr2_init(CLOCK_SECOND, msTick_Handler);
-//  timerCounter = 0;
-//  tmr2_start();
+  tmr2_init(CLOCK_SECOND, msTick_Handler);
+  timerCounter = 0;
+  tmr2_start();
 }
 //==============================================================================
 
@@ -335,7 +338,8 @@ int main(void)
   MX_I2C1_Init();
   MX_RTC_Init();
   MX_SPI1_Init();
-  MX_TIM2_Init();
+ // MX_TIM2_Init();
+  MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
 
 
@@ -357,15 +361,17 @@ int main(void)
 
     //------------------------------------------------------------------ MQTT
 
-    SystemInit();
+    //SystemInit();
 
     for (uint8_t  i = 0; i < 6; i++)
       uNet_eth_address.addr[i] = _eth_addr[i];
 
   #if DEBUG_UIP
-    printf("MAC address:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
+    sprintf(bufuart,"MAC address:%02x:%02x:%02x:%02x:%02x:%02x\r\n",
            _eth_addr[0], _eth_addr[1], _eth_addr[2], _eth_addr[3], _eth_addr[4], _eth_addr[5]);
-    printf("Init NIC...\r\n");
+	  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
+    sprintf(bufuart,"Init NIC...\r\n");
+	  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
   #endif
 
     // init NIC device driver
@@ -374,14 +380,16 @@ int main(void)
     uip_setethaddr(uNet_eth_address);
 
   #if DEBUG_UIP
-    printf("Init uIP...\r\n");
+    sprintf(bufuart,"Init uIP...\r\n");
+	  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
   #endif
 
     //init uIP
     uip_init();
 
   #if DEBUG_UIP
-    printf("Init ARP...\r\n");
+    sprintf(bufuart,"Init ARP...\r\n");
+	  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
   #endif
 
     //init ARP cache
@@ -398,14 +406,19 @@ int main(void)
 
     dhcpc_init(&uNet_eth_address.addr[0], 6);
     dhcpc_request();
+
+
+
+
   #else
-
-  #if DEBUG_UIP
-    printf("Static IP %d.%d.%d.%d\r\n", _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
-    printf("NetMask %d.%d.%d.%d\r\n", _net_mask[0], _net_mask[1], _net_mask[2], _net_mask[3]);
-    printf("Gateway %d.%d.%d.%d\r\n", _gateway[0], _gateway[1], _gateway[2], _gateway[3]);
-  #endif
-
+#if DEBUG_UIP
+  sprintf(bufuart,"Static IP %d.%d.%d.%d\r\n", _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
+  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
+  sprintf(bufuart,"NetMask %d.%d.%d.%d\r\n", _net_mask[0], _net_mask[1], _net_mask[2], _net_mask[3]);
+  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
+  sprintf(bufuart,"Gateway %d.%d.%d.%d\r\n", _gateway[0], _gateway[1], _gateway[2], _gateway[3]);
+  HAL_UART_Transmit(&huart1, bufuart, strlen((char *)bufuart), 1000);
+#endif
     uip_ipaddr(ipaddr, _ip_addr[0], _ip_addr[1], _ip_addr[2], _ip_addr[3]);
     uip_sethostaddr(ipaddr);
     uip_ipaddr(ipaddr, _net_mask[0], _net_mask[1], _net_mask[2], _net_mask[3]);
@@ -438,12 +451,15 @@ int main(void)
   /* USER CODE BEGIN WHILE */
 	while (1) {
 
+		Time();
+
+
 
 	    NetTask();
 
 
 
-		Time();
+
 
 
 
