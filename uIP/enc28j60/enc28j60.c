@@ -58,9 +58,10 @@ char bufuart[50];
 uint8_t SPI_SendRecvByte(uint8_t TxByte)
 {
 	uint8_t RxByte;
-	HAL_SPI_TransmitReceive(&SPI_PORT, &TxByte, &RxByte,1,10000);
+//	HAL_SPI_TransmitReceive(&SPI_PORT, &TxByte, &RxByte,1,10000);
 
-
+	HAL_SPI_Transmit(&hspi1,&TxByte,1,10000);
+	HAL_SPI_Receive(&hspi1,&RxByte,1,10000);
   return RxByte;
 }
 
@@ -185,7 +186,7 @@ uint16_t enc28j60PhyRead(uint8_t address)
   data <<= 8;
   data |= enc28j60Read(MIRDH);
 
-  return data;
+  return data;;
 }
 
 void enc28j60PhyWrite(uint8_t address, uint16_t data)
@@ -370,7 +371,7 @@ void enc28j60PacketSend(uint8_t * packet, uint16_t len)
 }
 
 uint8_t enc28j60PollPacketSending(void)
-{
+{;
   return enc28j60Read(ECON1) & ECON1_TXRTS;
 }
 

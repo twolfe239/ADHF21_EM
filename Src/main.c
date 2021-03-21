@@ -56,8 +56,7 @@
 #endif
 
 
-
-
+//#define ENABLE_DHCP 0
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -119,7 +118,7 @@ static struct umqtt_connection mqtt =
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-volatile char bufbme[20];
+volatile char bufbme[30];
 volatile char bufuart[50];
 volatile uint32_t ii = 0;
 volatile uint8_t flPin = 239;
@@ -438,8 +437,6 @@ int main(void)
     timer_set(&mqtt_conn_timer, CLOCK_SECOND * 3);
     // Таймер используется для периодической отправки сообщения по MQTT
     timer_set(&mqtt_pub_timer, CLOCK_SECOND * 10);
-
-
 
 
 

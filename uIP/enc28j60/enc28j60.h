@@ -18,7 +18,7 @@
 #endif //UIP_CONF_BUFFER_SIZE
 
 
-#define SPI_PORT		hspi1
+
 
 
 //// ���� ��� ����������� � ENC28J60 (����� ��� SCLK, MOSI, MISO)
